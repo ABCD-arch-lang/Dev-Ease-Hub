@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini Royale Arena</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="hud">
+      <div class="hud-block">
+        <p>Enemy Crown Tower</p>
+        <strong id="enemyHp">3000</strong>
+      </div>
+      <h1>Mini Royale Arena</h1>
+      <div class="hud-block">
+        <p>Your Crown Tower</p>
+        <strong id="playerHp">3000</strong>
+      </div>
+    </header>
+
+    <section class="arena-wrap">
+      <canvas id="arena" width="900" height="560" aria-label="Game arena"></canvas>
+      <div id="result" class="result hidden"></div>
+    </section>
+
+    <section class="controls">
+      <div class="elixir-panel">
+        <span>Elixir</span>
+        <div class="meter"><div id="elixirFill"></div></div>
+        <strong id="elixirValue">5.0 / 10</strong>
+      </div>
+
+      <div id="cards" class="cards" aria-label="Cards"></div>
+    </section>
+
+    <p class="tip">Drag a card onto your side of a lane to deploy (or click card then arena). First tower destroyed wins.</p>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

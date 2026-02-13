@@ -28,6 +28,18 @@ const state = {
   aiTimer: 0
 };
 
+const dragState = {
+  active: false,
+  cardIndex: null,
+  clientX: 0,
+  clientY: 0,
+  overArena: false,
+  isValidDrop: false,
+  lane: 0,
+  canvasX: 0,
+  canvasY: 0
+};
+
 function renderCards() {
   cardsNode.innerHTML = '';
   CARD_POOL.forEach((card, i) => {
@@ -38,16 +50,86 @@ function renderCards() {
 
     if (state.elixir < card.cost) btn.classList.add('disabled');
     if (state.selectedCard === i) btn.classList.add('active');
+    if (dragState.active && dragState.cardIndex === i) btn.classList.add('dragging');
 
     btn.addEventListener('click', () => {
-      if (state.elixir < card.cost || state.gameOver) return;
+      if (state.elixir < card.cost || state.gameOver || dragState.active) return;
       state.selectedCard = i;
       renderCards();
+    });
+
+    btn.addEventListener('pointerdown', (event) => {
+      if (state.elixir < card.cost || state.gameOver) return;
+      event.preventDefault();
+      startDrag(i, event.clientX, event.clientY);
     });
 
     cardsNode.appendChild(btn);
   });
 }
+
+function startDrag(cardIndex, clientX, clientY) {
+  dragState.active = true;
+  dragState.cardIndex = cardIndex;
+  state.selectedCard = cardIndex;
+  document.body.classList.add('dragging');
+  updateDrag(clientX, clientY);
+  renderCards();
+}
+
+function stopDrag(clientX, clientY) {
+  if (!dragState.active) return;
+  updateDrag(clientX, clientY);
+
+  if (dragState.isValidDrop) {
+    const card = CARD_POOL[dragState.cardIndex];
+    if (state.elixir >= card.cost) {
+      state.elixir -= card.cost;
+      deploy('player', dragState.cardIndex, dragState.lane);
+    }
+  }
+
+  dragState.active = false;
+  dragState.cardIndex = null;
+  dragState.overArena = false;
+  dragState.isValidDrop = false;
+  state.selectedCard = null;
+  document.body.classList.remove('dragging');
+  renderCards();
+}
+
+function updateDrag(clientX, clientY) {
+  dragState.clientX = clientX;
+  dragState.clientY = clientY;
+
+  const rect = canvas.getBoundingClientRect();
+  const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+
+  dragState.overArena = inside;
+  if (!inside) {
+    dragState.isValidDrop = false;
+    return;
+  }
+
+  const x = ((clientX - rect.left) / rect.width) * canvas.width;
+  const y = ((clientY - rect.top) / rect.height) * canvas.height;
+  dragState.canvasX = x;
+  dragState.canvasY = y;
+  dragState.lane = Math.abs(y - LANE_Y[0]) < Math.abs(y - LANE_Y[1]) ? 0 : 1;
+
+  const card = CARD_POOL[dragState.cardIndex];
+  dragState.isValidDrop = x <= BRIDGE_X - 5 && state.elixir >= card.cost && !state.gameOver;
+}
+
+document.addEventListener('pointermove', (event) => {
+  if (!dragState.active) return;
+  updateDrag(event.clientX, event.clientY);
+});
+
+document.addEventListener('pointerup', (event) => {
+  if (!dragState.active) return;
+  stopDrag(event.clientX, event.clientY);
+});
 
 function spawnUnit(typeIndex, side, lane) {
   const type = CARD_POOL[typeIndex];
@@ -98,7 +180,7 @@ function deploy(side, cardIndex, lane) {
 }
 
 canvas.addEventListener('click', (event) => {
-  if (state.selectedCard === null || state.gameOver) return;
+  if (state.selectedCard === null || state.gameOver || dragState.active) return;
 
   const rect = canvas.getBoundingClientRect();
   const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
@@ -218,6 +300,31 @@ function drawProjectiles() {
   }
 }
 
+function drawDragPreview() {
+  if (!dragState.active || !dragState.overArena) return;
+
+  const card = CARD_POOL[dragState.cardIndex];
+  const laneY = LANE_Y[dragState.lane];
+  const x = Math.min(BRIDGE_X - 5, Math.max(35, dragState.canvasX));
+  const valid = dragState.isValidDrop;
+  const radius = card.spell ? 30 : card.radius;
+
+  ctx.fillStyle = valid ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)';
+  ctx.fillRect(0, laneY - 42, BRIDGE_X - 5, 84);
+
+  ctx.beginPath();
+  ctx.arc(x, laneY, radius + 8, 0, Math.PI * 2);
+  ctx.fillStyle = valid ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x, laneY, radius, 0, Math.PI * 2);
+  ctx.fillStyle = card.color;
+  ctx.globalAlpha = valid ? 0.85 : 0.6;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
 function runAI(dt) {
   state.aiTimer -= dt;
   if (state.aiTimer > 0 || state.gameOver) return;
@@ -258,6 +365,7 @@ function gameLoop(now) {
   drawTower(state.enemyTower, 'enemy');
   drawProjectiles();
   drawUnits();
+  drawDragPreview();
 
   enemyHpNode.textContent = Math.max(0, Math.floor(state.enemyTower.hp));
   playerHpNode.textContent = Math.max(0, Math.floor(state.playerTower.hp));
